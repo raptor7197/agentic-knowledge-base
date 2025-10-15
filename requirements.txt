@@ -6,3 +6,4 @@ langchain-gemini
 langchain-anthropic
 python-dotenv
 pydantic
+google-generativeai
