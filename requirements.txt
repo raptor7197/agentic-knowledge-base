@@ -7,3 +7,5 @@ langchain-anthropic
 python-dotenv
 pydantic
 google-generativeai
+chromadb
+langchain-chroma

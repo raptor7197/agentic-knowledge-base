@@ -1,4 +1,4 @@
-# AI Coding Assistant
+# AI Agent with Long Context caching facility 
 
 This is an AI agent designed for professional coding environments, capable of analyzing codebases, providing suggestions, and optimizing itself through user feedback.
 

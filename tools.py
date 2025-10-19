@@ -1,12 +1,29 @@
 import os
 import subprocess
-from typing import Optional
+from typing import Optional, List
+import chromadb
+from langchain_chroma import Chroma
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 current_dir = os.getcwd()
 
 # Caches
 file_cache = {}
 dir_cache = {}
+
+# Vector database setup
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+vectorstore = Chroma(
+    persist_directory="./chroma_db",
+    embedding_function=embeddings,
+    collection_name="codebase"
+)
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=200,
+    separators=["\n\n", "\n", " ", ""]
+)
 
 def change_directory(path: str) -> str:
     """Change the current working directory for subsequent operations."""
