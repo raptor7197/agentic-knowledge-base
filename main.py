@@ -1,11 +1,14 @@
 import os
 import google.generativeai as genai
 from dotenv import load_dotenv
-from tools import read_file, search_code, list_directory, run_command, change_directory
+from tools import (
+    read_file, search_code, list_directory, run_command, change_directory,
+    add_to_vectorstore, search_vectorstore, index_codebase
+)
 
 load_dotenv()
 
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 read_file_func = genai.protos.FunctionDeclaration(
     name="read_file",
@@ -85,6 +88,54 @@ change_directory_func = genai.protos.FunctionDeclaration(
     )
 )
 
+search_vectorstore_func = genai.protos.FunctionDeclaration(
+    name="search_vectorstore",
+    description="Search the vector database for semantically similar code or content",
+    parameters=genai.protos.Schema(
+        type=genai.protos.Type.OBJECT,
+        properties={
+            "query": genai.protos.Schema(
+                type=genai.protos.Type.STRING,
+                description="The search query to find similar content"
+            ),
+            "k": genai.protos.Schema(
+                type=genai.protos.Type.INTEGER,
+                description="Number of results to return (default: 5)"
+            )
+        },
+        required=["query"]
+    )
+)
+
+add_to_vectorstore_func = genai.protos.FunctionDeclaration(
+    name="add_to_vectorstore",
+    description="Add a file's content to the vector database for future semantic search",
+    parameters=genai.protos.Schema(
+        type=genai.protos.Type.OBJECT,
+        properties={
+            "file_path": genai.protos.Schema(
+                type=genai.protos.Type.STRING,
+                description="The path to the file to add to vector database"
+            )
+        },
+        required=["file_path"]
+    )
+)
+
+index_codebase_func = genai.protos.FunctionDeclaration(
+    name="index_codebase",
+    description="Index all code files in a directory to the vector database for semantic search",
+    parameters=genai.protos.Schema(
+        type=genai.protos.Type.OBJECT,
+        properties={
+            "directory_path": genai.protos.Schema(
+                type=genai.protos.Type.STRING,
+                description="The directory path to index (default: current directory)"
+            )
+        }
+    )
+)
+
 # Create tool with all function declarations
 tools = genai.protos.Tool(
     function_declarations=[
@@ -92,7 +143,10 @@ tools = genai.protos.Tool(
         search_code_func,
         list_directory_func,
         run_command_func,
-        change_directory_func
+        change_directory_func,
+        search_vectorstore_func,
+        add_to_vectorstore_func,
+        index_codebase_func
     ]
 )
 
@@ -111,7 +165,10 @@ tool_functions = {
     'search_code': search_code,
     'list_directory': list_directory,
     'run_command': run_command,
-    'change_directory': change_directory
+    'change_directory': change_directory,
+    'search_vectorstore': search_vectorstore,
+    'add_to_vectorstore': add_to_vectorstore,
+    'index_codebase': index_codebase
 }
 
 # Interactive loop

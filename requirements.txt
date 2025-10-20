@@ -9,3 +9,5 @@ pydantic
 google-generativeai
 chromadb
 langchain-chroma
+langchain-huggingface
+sentence-transformers
