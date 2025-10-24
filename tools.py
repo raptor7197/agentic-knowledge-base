@@ -5,6 +5,7 @@ import chromadb
 from langchain_chroma import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from late_chunking_utils import get_late_chunking_embeddings, model as late_chunking_model, tokenizer as late_chunking_tokenizer
 
 current_dir = os.getcwd()
 
@@ -26,41 +27,7 @@ def initialize_vectorstore():
     global embeddings, vectorstore
     if embeddings is None:
         try:
-            # Simple TF-IDF based embeddings as fallback
-            import json
-
-            class SimpleEmbeddings:
-                def __init__(self):
-                    self.vocab = {}
-                    self.idf = {}
-
-                def _get_words(self, text):
-                    import re
-                    return re.findall(r'\w+', text.lower())
-
-                def _tfidf_vector(self, text):
-                    words = self._get_words(text)
-                    word_count = {}
-                    for word in words:
-                        word_count[word] = word_count.get(word, 0) + 1
-
-                    # Simple normalized word count vector
-                    vector = []
-                    for i in range(100):  # Fixed size vector
-                        word_key = f"word_{i % len(word_count) if word_count else 0}"
-                        if word_key in word_count:
-                            vector.append(word_count[word_key] / len(words))
-                        else:
-                            vector.append(0.0)
-                    return vector
-
-                def embed_documents(self, texts):
-                    return [self._tfidf_vector(text) for text in texts]
-
-                def embed_query(self, text):
-                    return self._tfidf_vector(text)
-
-            embeddings = SimpleEmbeddings()
+            embeddings = HuggingFaceEmbeddings(model_name="jinaai/jina-embeddings-v2-base-en")
             vectorstore = Chroma(
                 persist_directory="./chroma_db",
                 embedding_function=embeddings,
@@ -146,11 +113,29 @@ def add_to_vectorstore(file_path: str, content: str = None) -> str:
         # Split content into chunks
         chunks = text_splitter.split_text(content)
 
+        # Generate embeddings for each chunk using late chunking
+        chunk_embeddings = []
+        for chunk in chunks:
+            embeddings_list = get_late_chunking_embeddings(chunk)
+            if embeddings_list:
+                # Assuming get_late_chunking_embeddings returns a list of embeddings for sub-chunks
+                # For simplicity, we'll take the first embedding if multiple are returned, or average them
+                # For now, let's assume it returns a single embedding per chunk for direct use
+                chunk_embeddings.append(embeddings_list[0]) # Assuming it returns a list of embeddings, take the first one
+
         # Create metadata for each chunk
         metadatas = [{"source": file_path, "chunk": i} for i in range(len(chunks))]
 
         # Add to vectorstore
-        vectorstore.add_texts(chunks, metadatas=metadatas)
+        # ChromaDB's add_embeddings expects ids, embeddings, and metadatas
+        # We'll generate simple IDs for now
+        ids = [f"{file_path}_chunk_{i}" for i in range(len(chunks))]
+        vectorstore.add_embeddings(
+            embeddings=chunk_embeddings,
+            metadatas=metadatas,
+            documents=chunks, # Store the original text chunks
+            ids=ids
+        )
 
         return f"Added {len(chunks)} chunks from {file_path} to vector database"
     except Exception as e:
@@ -164,7 +149,15 @@ def search_vectorstore(query: str, k: int = 5) -> str:
         if "Error" in init_result:
             return init_result
 
-        results = vectorstore.similarity_search(query, k=k)
+        # Generate embedding for the query using late chunking
+        query_embeddings = get_late_chunking_embeddings(query)
+        if not query_embeddings:
+            return "Error: Could not generate embeddings for the query."
+        
+        # Assuming get_late_chunking_embeddings returns a list of embeddings, take the first one for the query
+        query_embedding = query_embeddings[0]
+
+        results = vectorstore.similarity_search_by_vector(query_embedding, k=k)
 
         if not results:
             return "No similar content found"

@@ -11,3 +11,4 @@ chromadb
 langchain-chroma
 langchain-huggingface
 sentence-transformers
+transformers
