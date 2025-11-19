@@ -12,13 +12,13 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 read_file_func = genai.protos.FunctionDeclaration(
     name="read_file",
-    description="Reads the contents of a file from the specified file path",
+    description="Reads the contents of a file. The path can be relative to the current directory or absolute.",
     parameters=genai.protos.Schema(
         type=genai.protos.Type.OBJECT,
         properties={
             "file_path": genai.protos.Schema(
                 type=genai.protos.Type.STRING,
-                description="The path to the file to read"
+                description="The path to the file to read (relative or absolute)."
             )
         },
         required=["file_path"]
@@ -27,17 +27,17 @@ read_file_func = genai.protos.FunctionDeclaration(
 
 search_code_func = genai.protos.FunctionDeclaration(
     name="search_code",
-    description="Searches for a pattern in code files within a directory",
+    description="Searches for a pattern in code files within a directory. The path can be relative or absolute.",
     parameters=genai.protos.Schema(
         type=genai.protos.Type.OBJECT,
         properties={
             "pattern": genai.protos.Schema(
                 type=genai.protos.Type.STRING,
-                description="The search pattern or text to find"
+                description="The search pattern or text to find."
             ),
             "path": genai.protos.Schema(
                 type=genai.protos.Type.STRING,
-                description="The directory path to search in (default: current directory)"
+                description="The directory path to search in (default: current directory)."
             )
         },
         required=["pattern"]
@@ -46,13 +46,13 @@ search_code_func = genai.protos.FunctionDeclaration(
 
 list_directory_func = genai.protos.FunctionDeclaration(
     name="list_directory",
-    description="Lists all files and directories in the specified path",
+    description="Lists all files and directories in the specified path. The path can be relative or absolute.",
     parameters=genai.protos.Schema(
         type=genai.protos.Type.OBJECT,
         properties={
             "path": genai.protos.Schema(
                 type=genai.protos.Type.STRING,
-                description="The directory path to list (default: current directory)"
+                description="The directory path to list (default: current directory)."
             )
         }
     )
@@ -60,13 +60,13 @@ list_directory_func = genai.protos.FunctionDeclaration(
 
 run_command_func = genai.protos.FunctionDeclaration(
     name="run_command",
-    description="Executes a shell command and returns the output",
+    description="Executes a shell command from the agent's current working directory.",
     parameters=genai.protos.Schema(
         type=genai.protos.Type.OBJECT,
         properties={
             "command": genai.protos.Schema(
                 type=genai.protos.Type.STRING,
-                description="The shell command to execute"
+                description="The shell command to execute."
             )
         },
         required=["command"]
@@ -75,13 +75,13 @@ run_command_func = genai.protos.FunctionDeclaration(
 
 change_directory_func = genai.protos.FunctionDeclaration(
     name="change_directory",
-    description="Changes the current working directory for subsequent operations",
+    description="Changes the agent's current working directory. All subsequent file operations will be relative to this new directory.",
     parameters=genai.protos.Schema(
         type=genai.protos.Type.OBJECT,
         properties={
             "path": genai.protos.Schema(
                 type=genai.protos.Type.STRING,
-                description="The path to change to"
+                description="The path to the new directory (relative or absolute)."
             )
         },
         required=["path"]
@@ -90,17 +90,17 @@ change_directory_func = genai.protos.FunctionDeclaration(
 
 search_vectorstore_func = genai.protos.FunctionDeclaration(
     name="search_vectorstore",
-    description="Search the vector database for semantically similar code or content",
+    description="Search the vector database for semantically similar code or content.",
     parameters=genai.protos.Schema(
         type=genai.protos.Type.OBJECT,
         properties={
             "query": genai.protos.Schema(
                 type=genai.protos.Type.STRING,
-                description="The search query to find similar content"
+                description="The search query to find similar content."
             ),
             "k": genai.protos.Schema(
                 type=genai.protos.Type.INTEGER,
-                description="Number of results to return (default: 5)"
+                description="Number of results to return (default: 5)."
             )
         },
         required=["query"]
@@ -109,13 +109,13 @@ search_vectorstore_func = genai.protos.FunctionDeclaration(
 
 add_to_vectorstore_func = genai.protos.FunctionDeclaration(
     name="add_to_vectorstore",
-    description="Add a file's content to the vector database for future semantic search",
+    description="Add a file's content to the vector database. The path can be relative or absolute.",
     parameters=genai.protos.Schema(
         type=genai.protos.Type.OBJECT,
         properties={
             "file_path": genai.protos.Schema(
                 type=genai.protos.Type.STRING,
-                description="The path to the file to add to vector database"
+                description="The path to the file to add to the vector database."
             )
         },
         required=["file_path"]
@@ -124,13 +124,13 @@ add_to_vectorstore_func = genai.protos.FunctionDeclaration(
 
 index_codebase_func = genai.protos.FunctionDeclaration(
     name="index_codebase",
-    description="Index all code files in a directory to the vector database for semantic search",
+    description="Index all code files in a directory for semantic search. The path can be relative or absolute.",
     parameters=genai.protos.Schema(
         type=genai.protos.Type.OBJECT,
         properties={
             "directory_path": genai.protos.Schema(
                 type=genai.protos.Type.STRING,
-                description="The directory path to index (default: current directory)"
+                description="The directory path to index (default: current directory)."
             )
         }
     )
