@@ -2,10 +2,16 @@ import os
 import subprocess
 from typing import Optional, List
 import chromadb
-from langchain_chroma import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
+# LangChain imports removed - using direct ChromaDB now
+# from langchain_chroma import Chroma
+# from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from late_chunking_utils import get_late_chunking_embeddings, model as late_chunking_model, tokenizer as late_chunking_tokenizer
+try:
+    from late_chunking_utils import get_late_chunking_embeddings
+except ImportError as e:
+    print(f"Warning: Could not import late_chunking_utils: {e}")
+    def get_late_chunking_embeddings(text):
+        return None
 
 current_dir = os.getcwd()
 
@@ -17,9 +23,9 @@ def _resolve_path(path: str) -> str:
 file_cache = {}
 dir_cache = {}
 
-# Vector database setup - lazy initialization
-embeddings = None
-vectorstore = None
+# Global variables for legacy compatibility (no longer used)
+# embeddings = None
+# vectorstore = None
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=1000,
     chunk_overlap=200,
@@ -27,18 +33,9 @@ text_splitter = RecursiveCharacterTextSplitter(
 )
 
 def initialize_vectorstore():
-    """Initialize vector database components on first use."""
-    global embeddings, vectorstore
-    if embeddings is None:
-        try:
-            embeddings = HuggingFaceEmbeddings(model_name="jinaai/jina-embeddings-v2-base-en")
-            vectorstore = Chroma(
-                persist_directory="./chroma_db",
-                embedding_function=embeddings,
-                collection_name="codebase"
-            )
-        except Exception as e:
-            return f"Error initializing vector database: {e}"
+    """Initialize vector database components on first use. (Legacy function - now ChromaDB is used directly)"""
+    # This function is kept for compatibility but no longer needed
+    # since we use ChromaDB directly in add_to_vectorstore and search_vectorstore
     return "Vector database initialized successfully"
 
 def change_directory(path: str) -> str:
@@ -107,10 +104,28 @@ def add_to_vectorstore(file_path: str, content: str = None) -> str:
     """Add a file's content to the vector database for semantic search."""
     resolved_path = _resolve_path(file_path)
     try:
-        # Initialize vectorstore if needed
-        init_result = initialize_vectorstore()
-        if "Error" in init_result:
-            return init_result
+        # Use ChromaDB client with consistent Jina embeddings
+        client = chromadb.PersistentClient(path="./chroma_db")
+
+        # Use same embedding function as chroma.py for consistency
+        from chromadb.utils import embedding_functions
+        jina_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name="jinaai/jina-embeddings-v2-base-en"
+        )
+
+        # Try to get existing collection, if dimension mismatch, create new one
+        try:
+            collection = client.get_collection(name="codebase")
+        except Exception:
+            # Collection doesn't exist or has issues, create new one
+            try:
+                client.delete_collection(name="codebase")
+            except Exception:
+                pass  # Collection might not exist
+            collection = client.create_collection(
+                name="codebase",
+                embedding_function=jina_ef
+            )
 
         if content is None:
             content = read_file(resolved_path)
@@ -121,29 +136,35 @@ def add_to_vectorstore(file_path: str, content: str = None) -> str:
         # Split content into chunks
         chunks = text_splitter.split_text(content)
 
-        # Generate embeddings for each chunk using late chunking
-        chunk_embeddings = []
-        for chunk in chunks:
-            embeddings_list = get_late_chunking_embeddings(chunk)
-            if embeddings_list:
-                # Assuming get_late_chunking_embeddings returns a list of embeddings for sub-chunks
-                # For simplicity, we'll take the first embedding if multiple are returned, or average them
-                # For now, let's assume it returns a single embedding per chunk for direct use
-                chunk_embeddings.append(embeddings_list[0]) # Assuming it returns a list of embeddings, take the first one
-
-        # Create metadata for each chunk
+        # Creating metadata for each chunk
         metadatas = [{"source": resolved_path, "chunk": i} for i in range(len(chunks))]
-
-        # Add to vectorstore
-        # ChromaDB's add_embeddings expects ids, embeddings, and metadatas
-        # We'll generate simple IDs for now
         ids = [f"{resolved_path}_chunk_{i}" for i in range(len(chunks))]
-        vectorstore.add_embeddings(
-            embeddings=chunk_embeddings,
-            metadatas=metadatas,
-            documents=chunks, # Store the original text chunks
-            ids=ids
-        )
+
+        # Add to ChromaDB collection - let ChromaDB handle embeddings automatically
+        try:
+            collection.add(
+                documents=chunks,
+                metadatas=metadatas,
+                ids=ids
+            )
+        except Exception as e:
+            if "dimension" in str(e).lower() or "already exists" in str(e).lower():
+                # Dimension mismatch or ID conflict - recreate collection
+                try:
+                    client.delete_collection(name="codebase")
+                    collection = client.create_collection(
+                        name="codebase",
+                        embedding_function=jina_ef
+                    )
+                    collection.add(
+                        documents=chunks,
+                        metadatas=metadatas,
+                        ids=ids
+                    )
+                except Exception as inner_e:
+                    return f"Error recreating collection: {inner_e}"
+            else:
+                raise e
 
         return f"Added {len(chunks)} chunks from {resolved_path} to vector database"
     except Exception as e:
@@ -152,29 +173,38 @@ def add_to_vectorstore(file_path: str, content: str = None) -> str:
 def search_vectorstore(query: str, k: int = 5) -> str:
     """Search the vector database for semantically similar content."""
     try:
-        # Initialize vectorstore if needed
-        init_result = initialize_vectorstore()
-        if "Error" in init_result:
-            return init_result
+        # Use ChromaDB client with consistent Jina embeddings
+        client = chromadb.PersistentClient(path="./chroma_db")
 
-        # Generate embedding for the query using late chunking
-        query_embeddings = get_late_chunking_embeddings(query)
-        if not query_embeddings:
-            return "Error: Could not generate embeddings for the query."
-        
-        # Assuming get_late_chunking_embeddings returns a list of embeddings, take the first one for the query
-        query_embedding = query_embeddings[0]
+        # Use same embedding function as add_to_vectorstore
+        from chromadb.utils import embedding_functions
+        jina_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name="jinaai/jina-embeddings-v2-base-en"
+        )
 
-        results = vectorstore.similarity_search_by_vector(query_embedding, k=k)
+        try:
+            collection = client.get_collection(name="codebase")
+        except Exception:
+            # Collection doesn't exist
+            return "No vector database found. Please add documents first using add_to_vectorstore."
 
-        if not results:
+        # Query the collection - let ChromaDB handle embedding the query
+        results = collection.query(
+            query_texts=[query],
+            n_results=k
+        )
+
+        if not results['documents'] or not results['documents'][0]:
             return "No similar content found"
 
         formatted_results = []
-        for i, doc in enumerate(results, 1):
-            source = doc.metadata.get("source", "Unknown")
-            chunk = doc.metadata.get("chunk", "")
-            formatted_results.append(f"Result {i} (from {source}, chunk {chunk}):\n{doc.page_content}\n")
+        documents = results['documents'][0]
+        metadatas = results['metadatas'][0]
+
+        for i in range(len(documents)):
+            source = metadatas[i].get("source", "Unknown")
+            chunk = metadatas[i].get("chunk", "")
+            formatted_results.append(f"Result {i+1} (from {source}, chunk {chunk}):\n{documents[i]}\n")
 
         return "\n".join(formatted_results)
     except Exception as e:
@@ -184,16 +214,10 @@ def index_codebase(directory_path: str = None) -> str:
     """Index all code files in a directory to the vector database."""
     index_path = _resolve_path(directory_path) if directory_path is not None else current_dir
     try:
-        # Initialize vectorstore if needed
-        init_result = initialize_vectorstore()
-        if "Error" in init_result:
-            return init_result
-
         indexed_files = 0
         code_extensions = {'.py', '.js', '.ts', '.java', '.cpp', '.c', '.h', '.md', '.txt', '.json', '.yaml', '.yml'}
 
         for root, dirs, files in os.walk(index_path):
-            # Skip common directories to avoid
             dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['node_modules', '__pycache__', 'venv', 'env']]
 
             for file in files:

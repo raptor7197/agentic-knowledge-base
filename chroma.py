@@ -1,15 +1,25 @@
 import chromadb
 import os
+from chromadb.utils import embedding_functions
+
 chroma_client = chromadb.Client()
 
+# Use Jina embeddings to match tools.py (768-dimensional)
+jina_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+    model_name="jinaai/jina-embeddings-v2-base-en"
+)
+
 # switch `create_collection` to `get_or_create_collection` to avoid creating a new collection every time
-collection = chroma_client.get_or_create_collection(name="my_collection")
+collection = chroma_client.get_or_create_collection(
+    name="my_collection",
+    embedding_function=jina_ef
+)
 
 # switch `add` to `upsert` to avoid adding the same documents every time
 # Read documents from files
 
 # Directory containing your text files
-docs_dir = "path/to/your/documents"
+docs_dir = "~/sem_notes/"
 documents = []
 ids = []
 

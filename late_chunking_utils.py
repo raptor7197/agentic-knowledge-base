@@ -2,7 +2,7 @@ from transformers import AutoModel, AutoTokenizer
 import numpy as np
 import requests
 
-# Load model and tokenizer
+# Load base model and tokenizer in late method 
 tokenizer = AutoTokenizer.from_pretrained('jinaai/jina-embeddings-v2-base-en', trust_remote_code=True)
 model = AutoModel.from_pretrained('jinaai/jina-embeddings-v2-base-en', trust_remote_code=True)
 
@@ -45,15 +45,12 @@ def chunk_by_tokenizer_api(input_text: str):
         "max_chunk_length": "1000"
     }
 
-    # Make the API request
     response = requests.post(url, json=payload)
     response_data = response.json()
 
-    # Extract chunks and positions from the response
     chunks = response_data.get("chunks", [])
     chunk_positions = response_data.get("chunk_positions", [])
 
-    # Adjust chunk positions to match the input format
     span_annotations = [(start, end) for start, end in chunk_positions]
 
     return chunks, span_annotations
@@ -88,7 +85,6 @@ def get_late_chunking_embeddings(text: str):
     inputs = tokenizer(text, return_tensors='pt')
     model_output = model(**inputs)
     
-    # Using chunk_by_sentences for simplicity, can be replaced with chunk_by_tokenizer_api
     _, span_annotations = chunk_by_sentences(text, tokenizer)
     
     embeddings = late_chunking(model_output, [span_annotations])[0]

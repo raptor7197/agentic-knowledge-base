@@ -1,4 +1,6 @@
 import os
+import time
+from google.api_core import exceptions
 import google.generativeai as genai
 from dotenv import load_dotenv
 from tools import (
@@ -152,7 +154,7 @@ tools = genai.protos.Tool(
 
 # Create model with tools
 model = genai.GenerativeModel(
-    'gemini-2.0-flash-exp',
+    'gemini-2.5-flash',
     tools=[tools]
 )
 
@@ -183,9 +185,20 @@ Use available tools to read files, search code, list directories, and run comman
 Provide detailed analysis, suggestions for optimization, and specific code changes if needed.
 """
 
-    # Send message and handle function calling loop
-    response = chat.send_message(prompt)
-    
+    # Send message with retry logic
+    response = None
+    for _ in range(3):  # Retry up to 3 times
+        try:
+            response = chat.send_message(prompt)
+            break  # Success
+        except exceptions.ResourceExhausted:
+            print("\n[Rate limit exceeded, retrying in 5 seconds...]")
+            time.sleep(5)
+
+    if not response:
+        print("\n[Failed to get response from API after multiple retries.]")
+        continue
+
     # Maximum iterations to prevent infinite loops
     max_iterations = 10
     iteration = 0
